@@ -29,7 +29,7 @@ knitr::opts_chunk$set(echo = TRUE,
 ## Fijar la semilla 
 ```{r set-seed}
 # Se puede escoger cualquier numero
-set.seed(9473)
+set.seed(2312)
 ```
 ## Tiempo de ejecucion
 ```{r rmd-start}
@@ -69,7 +69,7 @@ library("Biostrings")
 
 ```{r load-raw}
 # Fijar la ruta de los raw
-raw_fastqs_path <- "data/its/01_DADA2/raw_fastq"
+raw_fastqs_path <- "data/16s/01_DADA2/raw_fastq"
 
 # Que archivos hay en la ruta?
 head(list.files(raw_fastqs_path))
@@ -103,15 +103,14 @@ q_matrix <- as(quality(fq_test), "matrix")
 # Imprimir en consola los valores únicos
 bins_reales <- unique(as.vector(q_matrix))
 sort(bins_reales)
-
 # Anotar el output para el paso del modelo de errores
 ```
 
 ## Identificar e eliminar primers (Se puede saltar en su mayoria en 16s)
 ```{r primer-identification}
 # Crear variables con los primers utilizados en la secuenciacion
-FWD <- "GCATCGATGAAGAACGCAGC"
-REV <- "TCCTCCGCTTATTGATATGC"
+FWD <- "ACTCCTACGGGAGGCAGCA"
+REV <- "GGACTACHVGGGTWTCTAAT"
 # Transformarlos a DNA string para despues usar Biostrings
 FWD_dna <- DNAString(FWD)
 REV_dna <- DNAString(REV)
@@ -136,8 +135,8 @@ REV.orients <- sapply(
 FWD.orients
 
 # Filtrar muestras con bases ambiguas (Ns) para mapear correctamente los primers
-forward.filtN <- file.path("data/its/01_DADA2/filtN", basename(forward_reads)) 
-reverse.filtN <- file.path("data/its/01_DADA2/filtN", basename(reverse_reads))
+forward.filtN <- file.path("data/16s/01_DADA2/filtN", basename(forward_reads)) 
+reverse.filtN <- file.path("data/16s/01_DADA2/filtN", basename(reverse_reads))
 
 # Funcion de filtrado de DADA2
 filterAndTrim(forward_reads, forward.filtN, reverse_reads, reverse.filtN, maxN = 0, multithread = TRUE)
@@ -158,11 +157,12 @@ rbind(
 
 # Obtener a ruta de cutadapt al usar which cutadapt
 cutadapt <- "/usr/bin/cutadapt"
+
 # Comprobar que funciona cutadapt
 system2(cutadapt, args = "--version")
 
 # Preparar directorio para fastqs sin primers
-path.cut <- file.path("data/its/01_DADA2/noPrimer_reads")
+path.cut <- file.path("data/16s/01_DADA2/noPrimer_reads")
 if(!dir.exists(path.cut)) dir.create(path.cut)
 # Anadir los nombres de los archivos a la carpeta
 forward_reads.cut <- file.path(path.cut, basename(forward_reads))
@@ -186,10 +186,10 @@ for(i in seq_along(forward_reads)){
 ```{r primer-sanity-check}
 # Buscar primers post procesamiento
 rbind(
-  FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = forward_reads.cut),
-  FWD.ReverseReads = sapply(FWD.orients, primerHits, fn = reverse_reads.cut),
-  REV.ForwardReads = sapply(REV.orients, primerHits, fn = forward_reads.cut),
-  REV.ReverseReads = sapply(REV.orients, primerHits, fn = reverse_reads.cut)
+  FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = forward_reads.cut[[30]]),
+  FWD.ReverseReads = sapply(FWD.orients, primerHits, fn = reverse_reads.cut[[30]]),
+  REV.ForwardReads = sapply(REV.orients, primerHits, fn = forward_reads.cut[[30]]),
+  REV.ReverseReads = sapply(REV.orients, primerHits, fn = reverse_reads.cut[[30]])
 )
 ```
 
@@ -233,7 +233,7 @@ preQC_aggregate_plot
 ```
 
 ## Tenemos datos binned?
-```{r quality-distribution}
+```{r phred-score-distribution}
 # Sacamos la primera muestras de la lista para probar con la calidad de sus reads
 fq_test <- readFastq(forward_reads[1])
 
@@ -268,7 +268,7 @@ sample_names <- sapply(strsplit(basename(forward_reads.cut), "_"), `[`,1)
 head(sample_names)
 
 # Definir el path de las muestras post filtro
-filtered_path <- "data/its/01_DADA2/filtered_fastqs"
+filtered_path <- "data/16s/01_DADA2/filtered_fastqs"
 
 # Crear el directorio si no existe
 if(!dir.exists(filtered_path)) dir.create(filtered_path, recursive = TRUE)
@@ -293,12 +293,18 @@ head(filtered_reverse_reads)
 filtered_reads <- 
   filterAndTrim(fwd = forward_reads.cut, filt = filtered_forward_reads,
               rev = reverse_reads.cut, filt.rev = filtered_reverse_reads,
-              maxN = 0, maxEE = c(2,3), 
+              maxEE = c(2,1),
+# Iba a poner 2,1 pero algunas muestras no pasaron el filtro, el reverse tuvo 
+# Problemas de secuenciamiento y tiene calidad bastante baja al final
               truncQ = 2,
+              #trimLeft = c(8,3),
+              #truncLen = c(250, 240),
+# Otra opcion para eliminar primers en vez de cutadapt es setear el largo 
+# de la seq con trunclen, como ya eliminamos los primers con cutadapt no es necesario utilizarlo
               minLen = 50,
               rm.phix = TRUE, compress = TRUE,
-              multithread = 10)
-
+              multithread = 5)
+# la pc tiene 12 threads usar mas solamente en horas "off" y tratar de ser respetuosos con el uso de la pc
 ```
 
 # Inspeccionar la calidad post-filtrado
