@@ -1,11 +1,7 @@
 data/*
 data/**
 data/***
-analysis/env-fall15/**
-analysis/env-fall15/*
 analysis/00_fastqc/fastqc_report/*
-analysis/figures/*
-analysis/figures/**
 analysis/00_fastqc/fastqc_report/**
 figures/*
 figures/**
@@ -13,3 +9,10 @@ figures/**
 */*.RData
 *.RData
 analysis/00_multiqc/its/*
+/ASV_tables/ven/analysis/00_multiqc/fastq
+/ASV_tables/ven/analysis/00_multiqc/multiqc_report/multiqc_data
+*.fq
+*.fastq
+*.fq.gzip
+*.fastq.gzip
+*.Rproj

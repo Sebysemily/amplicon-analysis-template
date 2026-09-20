@@ -1,5 +1,5 @@
 ---
-title: "ITS_QC"
+title: "VEN_QC"
 author: "Roger Calvas"
 date: "`r Sys.Date()`"
 output: 
@@ -29,7 +29,7 @@ knitr::opts_chunk$set(echo = TRUE,
 ## Fijar la semilla 
 ```{r set-seed}
 # Se puede escoger cualquier numero
-set.seed(9473)
+set.seed(13579)
 ```
 ## Tiempo de ejecucion
 ```{r rmd-start}
@@ -66,10 +66,9 @@ library("Biostrings")
 3. Fastq post QC con calidad post-filtro
 
 # Cargar datos crudos
-
 ```{r load-raw}
 # Fijar la ruta de los raw
-raw_fastqs_path <- "data/its/01_DADA2/raw_fastq"
+raw_fastqs_path <- "data/01_DADA2/raw_fastq"
 
 # Que archivos hay en la ruta?
 head(list.files(raw_fastqs_path))
