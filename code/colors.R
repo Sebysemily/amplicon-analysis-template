@@ -1,7 +1,12 @@
 # Setting colors for status treatment
-status_colors <- c(
-  "during" = "dodgerblue4",
-  "Copano West" = "#D9CC3C")
+# Colores predeterminados de ggplot2 fijados para la variable Localidad
+localidad_colors <- c(
+  "Cristo Rey, Bosque Protector Collay" = "#F8766D", # Salmón
+  "Gualaceo, Chaucán-Padre Rumi"        = "#A3A500", # Oliva
+  "Gualaceo, Monte Verde"               = "#00BF7D", # Verde
+  "Santa Teresita, Huagrarancho"        = "#00B0F6", # Azul celeste
+  "Santa Teresita, Peña Blanca"         = "#E76BF3"  # Magenta/Rosa
+)
 
 # Set the phylum colors
 phylum_colors <- c(

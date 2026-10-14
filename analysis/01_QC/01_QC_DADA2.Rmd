@@ -41,6 +41,7 @@ start_time
 ## Cargar librerias de R
 ```{r load-libraries}
 # Carga rápida con pacman
+#install.packages("janitor")
 pacman::p_load(tidyverse, dada2, phyloseq, DT, devtools, patchwork, install = FALSE)
 library( "ShortRead")
 library("Biostrings")
@@ -109,7 +110,7 @@ sort(bins_reales)
 
 ## Identificar e eliminar primers (Se puede saltar en su mayoria en 16s)
 ```{r primer-identification}
-# Crear variables con los primers utilizados en la secuenciacion
+# Crear variables con los primers utilizados en la secuenciacion, diapositiva para que busquen los primers en el reporte
 FWD <- "GCATCGATGAAGAACGCAGC"
 REV <- "TCCTCCGCTTATTGATATGC"
 # Transformarlos a DNA string para despues usar Biostrings
@@ -139,7 +140,7 @@ FWD.orients
 forward.filtN <- file.path("data/its/01_DADA2/filtN", basename(forward_reads)) 
 reverse.filtN <- file.path("data/its/01_DADA2/filtN", basename(reverse_reads))
 
-# Funcion de filtrado de DADA2
+# Funcion de filtrado de DADA2 (la explicamos mejor en el paso de filtrado)
 filterAndTrim(forward_reads, forward.filtN, reverse_reads, reverse.filtN, maxN = 0, multithread = TRUE)
 
 ## Función auxiliar para contar hits de primers en un archivo
@@ -148,7 +149,7 @@ primerHits <- function(primer, fn) {
     return(sum(nhits > 0))
 }
 
-# Contar los hits
+# Contar los hits, despues de correr diapo explicando particularidad de its
 rbind(
   FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = forward.filtN[[1]]),
   FWD.ReverseReads = sapply(FWD.orients, primerHits, fn = reverse.filtN[[1]]),
@@ -171,11 +172,11 @@ reverse_reads.cut <- file.path(path.cut, basename(reverse_reads))
 FWD.RC <- dada2::rc(FWD)
 REV.RC <- dada2::rc(REV)
 
-# Filtrar el primer FWD y el complemente de REV de R1
+# FWD y el complemente de REV de R1
 R1.flags <- paste("-g", FWD, "-a", REV.RC)
-# Filtrar el primer REV y el complemento de FWD de R2
+# REV y el complemento de FWD de R2
 R2.flags <- paste("-G", REV, "-A", FWD.RC)
-# Correr cutadapt
+# Correr cutadapt (antes de correr explicar que -n 2 hace que haga hasta 2 cortes por lectura que tiene sentido pq queremos cortar ambos extremos y -m 50 nos da un minimo de largo de 50 que es arbitrario pero la justificacion es que aun puede solapar con lecturas mas largas de complemento para formar un asv pequenio y cortar demasiado corto puede hacer que no empalmen pero demasiado largo puede esconder diversidad biologica)
 for(i in seq_along(forward_reads)){
   system2(cutadapt, args = c(R1.flags, R2.flags, "-n", 2, "-m", 50, 
                              "-o", forward_reads.cut[i], "-p", reverse_reads.cut[i], forward.filtN[i], reverse.filtN[i]), stdout = FALSE, stderr = FALSE)
@@ -232,21 +233,6 @@ preQC_aggregate_plot <-
 preQC_aggregate_plot
 ```
 
-## Tenemos datos binned?
-```{r quality-distribution}
-# Sacamos la primera muestras de la lista para probar con la calidad de sus reads
-fq_test <- readFastq(forward_reads[1])
-
-# Lo guardamos como matrix para aplicar unique
-q_matrix <- as(quality(fq_test), "matrix")
-
-# Obtenemos los valores unicos de calidad
-bins_reales <- na.omit(unique(as.vector(q_matrix)))
-
-# Mostrarlos
-sort(bins_reales)
-```
-
 <span style="color: red;"> Pregunta 1: Que inferencias iniciales en relacion al filtrado se pueden encontrar hasta ahora? </span> 
 
 [*Calidad alta de inicio a ~200pb:*<br>
@@ -289,11 +275,12 @@ head(filtered_reverse_reads)
 ```
 
 ## Filtrar secuencias
-```{r filter-and-trim}
+```{r filter-and-trim} 
+# full diapos de explicacion
 filtered_reads <- 
   filterAndTrim(fwd = forward_reads.cut, filt = filtered_forward_reads,
               rev = reverse_reads.cut, filt.rev = filtered_reverse_reads,
-              maxN = 0, maxEE = c(2,3), 
+              maxEE = c(2,3),
               truncQ = 2,
               minLen = 50,
               rm.phix = TRUE, compress = TRUE,
@@ -315,7 +302,7 @@ reverse_filteredQual_plot_12 <-
   plotQualityProfile(filtered_reverse_reads[random_samples]) + 
   labs(title = "Trimmed Reverse Read Quality")
 
-# unir los plots 
+# unir los plots
 forward_filteredQual_plot_12 + reverse_filteredQual_plot_12
 ```
 
@@ -334,17 +321,17 @@ reverse_postQC_plot <-
 # Juntar los plots en una sola figura
 postQC_aggregate_plot <- 
   forward_postQC_plot + reverse_postQC_plot
-# Mostrar la figura
+# Mostrar la figura 
 postQC_aggregate_plot
 ```
 
 ## Ver las diferencias en una misma figura 
 ```{r pre-post-QC-plot, fig.width=6, fig.height=5.5}
-# Plot the pre and post together in one plot
+# Plot the pre and post together in one plot, tambien esta de ver el cambio de los largos, cuando se usa truncQ 11 los largos se hacen demasiado cortos y eso me dio a pensar que estaba perdiendo muchas secuencias largas de manera biased
 preQC_aggregate_plot / postQC_aggregate_plot
 ```
 
-# Inspeccionar la retencion
+# Inspeccionar la retención
 
 ## Guardar el output en un data frame
 ```{r data-frame}
