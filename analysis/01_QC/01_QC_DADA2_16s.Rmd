@@ -1,5 +1,5 @@
 ---
-title: "ITS_QC"
+title: "16s_QC"
 author: "Roger Calvas"
 date: "`r Sys.Date()`"
 output: 
@@ -232,21 +232,6 @@ preQC_aggregate_plot <-
 preQC_aggregate_plot
 ```
 
-## Tenemos datos binned?
-```{r phred-score-distribution}
-# Sacamos la primera muestras de la lista para probar con la calidad de sus reads
-fq_test <- readFastq(forward_reads[1])
-
-# Lo guardamos como matrix para aplicar unique
-q_matrix <- as(quality(fq_test), "matrix")
-
-# Obtenemos los valores unicos de calidad
-bins_reales <- na.omit(unique(as.vector(q_matrix)))
-
-# Mostrarlos
-sort(bins_reales)
-```
-
 <span style="color: red;"> Pregunta 1: Que inferencias iniciales en relacion al filtrado se pueden encontrar hasta ahora? </span> 
 
 [*Calidad alta de inicio a ~200pb:*<br>
@@ -294,13 +279,7 @@ filtered_reads <-
   filterAndTrim(fwd = forward_reads.cut, filt = filtered_forward_reads,
               rev = reverse_reads.cut, filt.rev = filtered_reverse_reads,
               maxEE = c(2,1),
-# Iba a poner 2,1 pero algunas muestras no pasaron el filtro, el reverse tuvo 
-# Problemas de secuenciamiento y tiene calidad bastante baja al final
               truncQ = 2,
-              #trimLeft = c(8,3),
-              #truncLen = c(250, 240),
-# Otra opcion para eliminar primers en vez de cutadapt es setear el largo 
-# de la seq con trunclen, como ya eliminamos los primers con cutadapt no es necesario utilizarlo
               minLen = 50,
               rm.phix = TRUE, compress = TRUE,
               multithread = 5)

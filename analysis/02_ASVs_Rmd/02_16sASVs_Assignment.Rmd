@@ -43,7 +43,7 @@ start_time <- Sys.time()
 
 ## Load Packages 
 ```{r load-packages}
-#install.packages("janitor")
+# install.packages("janitor")
 # Efficient package loading with pacman 
 pacman::p_load(tidyverse, devtools, dada2, 
                patchwork, DT, phyloseq, janitor, install = FALSE)
@@ -75,7 +75,7 @@ pacman::p_load(tidyverse, devtools, dada2,
 ## Cargar fastqs
 ```{r load-filtered-fastqs}
 # Place filtered seq files into a variable 
-filtered_fastqs_path <- "data/its/01_DADA2/filtered_fastqs"
+filtered_fastqs_path <- "data/16s/01_DADA2/filtered_fastqs"
 
 # Intuition check:
 filtered_fastqs_path
@@ -120,7 +120,7 @@ binnedErrFun <- makeBinnedQualErrfun(binnedQs)
 ```{r learn-errors, fig.width=12, fig.height=8}
 # Forward Reads con binned err fun
 error_forward_reads <- 
-  learnErrors(filtered_forward_reads, multithread = n_threads, nbases = 3e8, errorEstimationFunction = binnedErrFun)
+  learnErrors(filtered_forward_reads, multithread = n_threads, nbases = 3e8, errorEstimationFunction = binnedErrFun, verbose = TRUE)
 
 # Forward Error Plot 
 forward_error_plot <- 
@@ -129,7 +129,7 @@ forward_error_plot <-
 
 # Reverse Reads con binned err fun
 error_reverse_reads <- 
-  learnErrors(filtered_reverse_reads, multithread = n_threads, nbases = 3e8, errorEstimationFunction = binnedErrFun)
+  learnErrors(filtered_reverse_reads, multithread = n_threads, nbases = 3e8, errorEstimationFunction = binnedErrFun, verbose = TRUE)
 
 # Reverse Error Plot 
 reverse_error_plot <- 
@@ -204,8 +204,9 @@ dim(raw_ASV_table)
 typeof(raw_ASV_table)
 class(raw_ASV_table)
 
+if(!dir.exists("data/16s/02_Assign_ASVs/")) dir.create("data/16s/02_Assign_ASVs/")
 # write out raw_asv_table 
-write.table(raw_ASV_table, file = "data/its/02_Assign_ASVs/raw_ASV_counts.tsv",
+write.table(raw_ASV_table, file = "data/16s/02_Assign_ASVs/raw_ASV_counts.tsv",
             sep = "\t", quote = FALSE, col.names = NA)
 ```
 
@@ -214,16 +215,17 @@ write.table(raw_ASV_table, file = "data/its/02_Assign_ASVs/raw_ASV_counts.tsv",
 # Calculate summary stats
 # Longest ASV?
 maxLength_ASV <- max(nchar(getSequences(raw_ASV_table)))
-
+maxLength_ASV
 # Shortest ASV?
 minLength_ASV <- min(nchar(getSequences(raw_ASV_table))) 
-
+minLength_ASV
 # Mean ASV length?
-meanLength_ASV <- mean(nchar(getSequences(raw_ASV_table))) 
+meanLength_ASV <- mean(nchar(getSequences(raw_ASV_table)))
+meanLength_ASV
 
 # Median ASV length?
 medianLength_ASV <- median(nchar(getSequences(raw_ASV_table))) 
-
+medianLength_ASV
 # Create a table to Inspect the distribution of sequence lengths of all ASVs in dataset 
 table(nchar(getSequences(raw_ASV_table)))
 ```
@@ -246,11 +248,39 @@ plot_ASVLength_raw
 <span style="color: red;">Preguntas 2: Cual es el largo esperado de los ASVs sin primers? Cual fue la region minima de solapamiento? Cual es el valor default de region minima de solapamiento? 
 [En ITS es variable entonces queremos ver una curva con forma de campana, sobre todo que tenga un decrecimiento suavizado. La region minima de solapamiento fue 12 porque ese es el valor default de la funcion]
 
+
+## Trim ASV length
+```{r trim-ASVs}
+# Subset only ASVs that are 245 bps long
+# Filtrar para secuencias entre 400 y 440 pares de bases
+raw_ASV_table_trimmed <- raw_ASV_table[, nchar(colnames(raw_ASV_table)) >= 403 & nchar(colnames(raw_ASV_table)) <= 440]
+
+# Inspect the distribution of sequence lengths of all ASVs in dataset 
+table(nchar(getSequences(raw_ASV_table_trimmed)))
+
+# What proportion of total ASV sequences are left in the data? 
+percRetained_Trimmed <- sum(raw_ASV_table_trimmed)/sum(raw_ASV_table)
+percRetained_Trimmed # Show it 
+
+# Inspect the distribution of sequence lengths of all ASVs in dataset 
+# AFTER TRIM
+plot_ASVLength_trimmed <- 
+  data.frame(Seq_Length = nchar(getSequences(raw_ASV_table_trimmed))) %>%
+  ggplot(aes(x = Seq_Length )) + 
+  geom_histogram() + 
+  # include the x-axis scales
+  scale_x_continuous(limits = c(0, maxLength_ASV + 5)) + 
+  labs(y = "Number of ASVs", x = "Trimmed ASV Length (bps)")
+
+# Show the plot 
+plot_ASVLength_trimmed
+```
+
 ## Remover Chimeras
 ```{r rm-chimeras, fig.width=3.5, fig.height=3}
 # Remove the chimeras in the raw ASV table
 noChimeras_ASV_table <- 
-  removeBimeraDenovo(raw_ASV_table, 
+  removeBimeraDenovo(raw_ASV_table_trimmed, 
                      method="consensus", 
                      multithread = n_threads, 
                      verbose=TRUE)
@@ -260,7 +290,7 @@ dim(noChimeras_ASV_table)
 
 # Chimera removal compared to raw  
 percRetained_chimerasRaw <-sum(noChimeras_ASV_table)/sum(raw_ASV_table)
-
+percRetained_chimerasRaw
 # Plot it 
 plot_ASVLength_NoChimeras <- 
   data.frame(Seq_Length_NoChim = nchar(getSequences(noChimeras_ASV_table))) %>%
@@ -277,7 +307,7 @@ plot_ASVLength_NoChimeras
 
 ## Plot ASV Lengths 
 ```{r plot-ASVLengths, fig.height=2.5, fig.width=7}
-plot_ASVLength_raw + plot_ASVLength_NoChimeras + 
+plot_ASVLength_raw + plot_ASVLength_trimmed + plot_ASVLength_NoChimeras + 
     plot_annotation(tag_levels = 'A')
 ```
 
@@ -370,11 +400,16 @@ la profundidad de secuenciamiento y el numero de ASVs, algo que da mas seguridad
 
 ```{r assign-tax}
 # Assign taxonomy 
-taxa_train <- 
+taxa_gen <- 
   assignTaxonomy(noChimeras_ASV_table, 
-                 refFasta = "/opt/curso_16s/bases_de_datos/amplicones/sh_general_release_unite_all_19.02.2025.fasta",
+                 refFasta = "/opt/curso_amplicones/bases_de_datos/amplicones/silva_nr99_v138.1_train_set.fa.gz",
                  tryRC = TRUE,
                  multithread = n_threads)
+# Add the genus/species information 
+taxa_train <- 
+  addSpecies(taxa_gen,
+             refFasta = "/opt/curso_amplicones/bases_de_datos/amplicones/silva_species_assignment_v138.1.fa.gz")
+
 # Inspect the taxonomy 
 glimpse(taxa_train) # Note that the rownames are the ASV sequences!
 # Let's removing the ASV sequence rownames for display only
@@ -462,12 +497,12 @@ final_ASV_table[1:5, 1:5]
 ```{r write-asv-tables}
 # 1. Write count table with ASV sequence names
 write.table(final_ASV_table_withSeqs, 
-            file = "data/its/02_Assign_ASVs/ASV_table_withSeqNames.tsv", 
+            file = "data/16s/02_Assign_ASVs/ASV_table_withSeqNames.tsv", 
             sep = "\t", quote = FALSE, col.names = NA)
 
 # 2. Write count table with ASV numbered names (e.g. ASV_1, ASV_2, etc)
 write.table(final_ASV_table, 
-            file = "data/its/02_Assign_ASVs/ASV_table.tsv", 
+            file = "data/16s/02_Assign_ASVs/ASV_table.tsv", 
             sep = "\t", quote = FALSE, col.names = NA)
 ```
 
@@ -522,7 +557,7 @@ stopifnot(ASV_tax_table$ASV == rownames(ASV_tax_table),
 ```{r write-tax-table}
 # Write the table 
 write.table(ASV_tax_table, 
-            file = "data/its/02_Assign_ASVs/ASV_taxonomy.tsv", 
+            file = "data/16s/02_Assign_ASVs/ASV_taxonomy.tsv", 
             sep = "\t", quote = FALSE, col.names = NA)
 ```
 
@@ -531,7 +566,7 @@ write.table(ASV_tax_table,
 ### Importar metadata y agregar las calidades de agua a las muestras
 ```{r load-metadata}
 # Importar la tabla de promedios de calidad de agua
-agua_df <- read_csv("data/its/metadata/agua_promedios.csv", col_names = TRUE) %>%
+agua_df <- read_csv("data/16s/metadata/agua_promedios.csv", col_names = TRUE) %>%
   clean_names()
 
 # Estandarizar los nombres de las muestras
@@ -541,7 +576,7 @@ track_counts_df$sample_names <- sapply(strsplit(track_counts_df$sample_names, "_
 head(track_counts_df)
 
 # Ensamblar la metadata  
-metadata_fixed <-read_csv("data/its/metadata/metadata.csv", col_names = TRUE) %>%
+metadata_fixed <-read_csv("data/16s/metadata/metadata.csv", col_names = TRUE) %>%
   clean_names() %>%
   # Renombrar la columna de nombres para que sea sample_names
   dplyr::rename(sample_names = codigo) %>%
@@ -585,9 +620,9 @@ raw_physeq <-
          tax_table(as.matrix(ASV_tax_table)))
 
 raw_physeq
-
+#View(as(sample_data(raw_physeq), "data.frame"))
 #save
-save(raw_physeq, file = "data/its/02_Assign_ASVs/raw_physeq.RData")
+save(raw_physeq, file = "data/16s/02_Assign_ASVs/raw_physeq.RData")
 ```
 
 # Final info for Reproducibility 
