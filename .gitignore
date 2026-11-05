@@ -13,3 +13,4 @@ figures/**
 */*.RData
 *.RData
 analysis/00_multiqc/its/*
+/.Rhistory

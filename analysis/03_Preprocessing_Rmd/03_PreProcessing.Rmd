@@ -30,7 +30,7 @@ knitr::opts_chunk$set(echo = TRUE,
 ```{r load-packages}
 #install.packages("BiocManager")
 #BiocManager::install("Biostrings")
-pacman::p_load(devtools, phyloseq, Biostrings, tidyverse, patchwork, iNEXT,  install = FALSE)
+pacman::p_load(devtools, phyloseq, Biostrings, tidyverse, patchwork, janitor, iNEXT,  install = FALSE)
 source("code/colors.R")
 ```
 
@@ -51,29 +51,91 @@ start_time <- Sys.time()
 
 # Objetivos del archivo:
 
-1. Remove any ASVs that are **cloroplasts**
-2. Remove ASVs that are **mitochondria**
-3. Check for **reverse complements**
-4. Check los **sequencing depth** y decidir acerca
-del acerca del minimo para rarefaccion
-5. Finalizar el archivo physeq `preprocessed_physeq`
+1.Crear S4 R data object, en este caso llamado phyloseq, desde la tabla `asv_table`, `tax_table`, y metadata.Unificando todo en un solo objeto de datos. 
+2. Remove any ASVs that are **cloroplasts**
+3. Remove ASVs that are **mitochondria**
+4. Check for **reverse complements**
+5. Check los **sequencing depth** 
 
 ## Input
-1. **Raw phyloseq object**: `data/02_AssignASVs/raw_phyloseq.RData`
+1. **Raw phyloseq object**: `data/its/02_AssignASVs/raw_phyloseq.RData`
+2. `asv_table` 
+3. `tax_table`
+3. `Metadata`
 
 ## Output
-1. A pre-processed phyloseq object (S4 object): `data/03_PreProcessing/preprocessed_phyloseq.RData`
+1. A clean phyloseq object (S4 object): `data/03_PreProcessing/clean_physeq.RData`
+
 # Load Data
 
-```{r load-physeq}
-# Load physeq
-load("data/its/02_Assign_ASVs/raw_physeq.RData")
+```{r load-data}
+# Load ASV table
+ASV_table <- read_tsv("data/its/02_Assign_ASVs/ASV_table.tsv") %>%
+  column_to_rownames(var = colnames(.)[1]) # Toma la primera columna y la hace rownames
+# Lo mismo para la tabla de taxonomía
+ASV_tax_table <- read_tsv("data/its/02_Assign_ASVs/ASV_taxonomy.tsv") %>%
+  column_to_rownames(var = colnames(.)[1])
+# Load la tabla de conteos
+track_counts_df <- readRDS("data/its/02_Assign_ASVs/track_counts_df.rds")
 
-# Ver el formato
+# Estandarizar los nombres de las muestras
+track_counts_df$sample_names <- sapply(strsplit(track_counts_df$sample_names, "_"), '[', 1)
+# Como se ve después? 
+head(track_counts_df)
+
+# Importar la tabla de promedios de calidad de agua
+agua_df <- read_csv("data/its/metadata/agua_promedios.csv", col_names = TRUE) %>%
+  clean_names()
+# Ensamblar la metadata  
+metadata_fixed <-read_csv("data/its/metadata/metadata.csv", col_names = TRUE) %>%
+  clean_names() %>%
+  # Renombrar la columna de codigo para que sea sample_names
+  dplyr::rename(sample_names = codigo) %>%
+  
+  # Elimina las filas vacias
+  drop_na(sample_names) %>%
+  
+  # Eliminar filas que tengan guiones bajos pero no codigo de muestra
+  filter(!str_detect(sample_names, "^_+$|^-+$")) %>%
+  
+  # Estandarizar el nombre de las muestras
+  mutate(sample_names = str_replace_all(sample_names, " ", "-")) %>%
+  mutate(sample_names = str_trim(sample_names)) %>%
+  # Inyectar las calidades promedio de agua por localidad
+  left_join(agua_df, by = "localidad") %>%
+  
+  # Inner_join para ignorar las cosas no secuenciadas y añadir stats DADA2
+  inner_join(track_counts_df, by = "sample_names") %>%
+  
+  # Prueba de sanidad para que solo haya un registro por muestra
+  distinct(sample_names, .keep_all = TRUE) %>%
+  
+  # Phyloseq exige que los identificadores de muestra estén asignados como 'rownames' 
+  # para poder ensamblar el objeto S4. Sin embargo, las herramientas de Tidyverse 
+  # (como dplyr y ggplot2) operan sobre columnas explícitas y no leen los rownames.
+  # Como la función 'column_to_rownames' consume (elimina) la columna que se le pasa, 
+  # creamos una copia temporal para sacrificarla en este paso. Esto satisface el 
+  # requisito de Phyloseq y conserva la columna original 'sample_names' intacta 
+  # para uso futuro en tidyverse y facil acceso a la metadata
+  mutate(rownames_temp = sample_names) %>% 
+  column_to_rownames(var = "rownames_temp")
+# Verificar dimensiones finales
+dim(metadata_fixed)
+```
+
+# Create a phyloseq object!
+
+## Creacion de objeto phyloseq 
+
+```{r phyloseq-handoff}
+raw_physeq <-
+  phyloseq::phyloseq(otu_table(ASV_table, taxa_are_rows = TRUE),
+         sample_data(metadata_fixed),
+         tax_table(as.matrix(ASV_tax_table)))
+
 raw_physeq
 ```
 
-# Clean up the data!
 
 ## Remover todo lo no_fungi
 ```{r rm-!fungi}
@@ -96,10 +158,6 @@ clean_physeq <-
 numAmbiguous_ASVs <- ntaxa(fungi_physeq) - ntaxa(clean_physeq)
 numAmbiguous_ASVs
 ```
-
-<span style="color: red;"> Pregunta 1: Que contaminantes buscaste y cuantos habian? El dataset tenia controles positivos o negativos? como se manejan los controles? </span> 
-  
-there is no controls nor mock communities so we can go ahead to Reverse complements
 
 ## Buscar complemento reverso
 ```{r reverse-complements}
@@ -144,7 +202,7 @@ clean_physeq
 
 # Asesorar la profundidad del resto de las muestras
 
-```{r read-depth}
+```{r read-depth, fig.width=14, fig.height=8}
 # El objeto actual
 clean_physeq
 
@@ -218,7 +276,7 @@ seqSums_df %>%
   arrange(TotalSeqs)
 ```
 
-<span style="color: red;">Pregunta 2: Como se ven las profundidades, crees que hay "suficientes" reads para el resto del analisis o hay alguna muestra que tenga demasiado poco? </span>
+<span style="color: red;">Pregunta 1: Como se ven las profundidades, crees que hay "suficientes" reads para el resto del analisis o hay alguna muestra que tenga demasiado poco? </span>
 
 # Save proccesed phyloseq object
 
@@ -226,100 +284,6 @@ seqSums_df %>%
 save(clean_physeq, file = "data/its/03_PreProcessing/clean_physeq.RData")
 ```
 
-# Run iNEXT
-
-```{r iNEXT-biodiversity}
-# prepare the input data 
-# Species in rows and the samples in columns 
-iNEXT_input_df <- 
-  clean_physeq %>%
-  otu_table() %>%
-  data.frame()
-
-# Inpect 
-dim(iNEXT_input_df)
-iNEXT_input_df[1:5, 1:5]
-
-# Run iNEXT 
-# Remember to set the seed!
-# ASVs in ROWs, samples in COLUMNS 
-iNEXT_data <- iNEXT(iNEXT_input_df, 
-                    q = c(0, 1, 2),
-                    datatype = "abundance")
-```
-
-## `ggiNEXT` Rarefaction Curves 
-```{r iNEXT-colors}
-# Extraer metadata para los colores
-iNEXT_color_df <- 
-  clean_physeq %>%
-  sample_data() %>%
-  data.frame() %>%
-  # Asegúrate de usar la variable correcta de tu diseño experimental (ej. 'localidad')
-  dplyr::select(sample_names, localidad)
-
-# arreglar los nombres con guiones 
-inext_names <- gsub("-", ".", iNEXT_color_df$sample_names)
-
-# Crear el vector de colores por muestra
-colores_por_muestra <- localidad_colors[iNEXT_color_df$localidad]
-names(colores_por_muestra) <- inext_names
-
-# Extraer una muestra por localidad para tener una leyenda (ahora estamos asignando el color a cada muestra entonces si dibujamos una leyenda default va a tener cada una de las muestras)
-localidades_unicas <- unique(iNEXT_color_df$localidad)
-# Buscamos la primera muestra que coincida con cada localidad
-muestras_representantes <- inext_names[match(localidades_unicas, iNEXT_color_df$localidad)]
-```
-
-## Plot main curve
-```{r plot-iNEXT-rarefaction}
-# Curvas de Rarefacción con ggiNEXT
-ggiNEXT(iNEXT_data, type = 1, facet.var = "Order.q") + 
-  theme_bw() + 
-  theme(legend.position = "bottom",
-        legend.title = element_text(face = "bold")) + 
-  scale_color_manual(name = "Localidad",
-                     values = colores_por_muestra, 
-                     breaks = muestras_representantes, # Solo muestra 5 elementos en la leyenda
-                     labels = localidades_unicas) +    # Renombra esos 5 elementos con las localidades
-  scale_fill_manual(name = "Localidad",
-                    values = colores_por_muestra, 
-                    breaks = muestras_representantes, 
-                    labels = localidades_unicas) +
-  guides(shape = "none") + # elimina la leyenda de las formas de los nodos de la muestra
-  labs(y = "Effective Number of ASVs", x = "Number of Sequences")
-```
-
-## Curve per localidad
-```{r manual-rarefaction}
-# 1. Preparar la metadata para el cruce (creando una columna puente con puntos)
-meta_for_join <- metadata_df %>%
-  mutate(names_inext = gsub("-", ".", sample_names))
-
-# 2. Extraer los datos matemáticos de iNEXT y unirlos con tu metadata
-iNEXT_manual_df <- 
-  iNEXT_data$iNextEst$size_based %>%
-  dplyr::rename(names_inext = Assemblage) %>%
-  left_join(meta_for_join, by = "names_inext")
-
-# 3. Dibujar las curvas separadas por localidad
-iNEXT_manual_df %>%
-  # Filtrar solo los datos interpolados reales (Rarefaction)
-  dplyr::filter(Method == "Rarefaction") %>%
-  ggplot(aes(x = m, y = qD, color = localidad, group = sample_names)) + 
-  geom_line(linewidth = 0.8, alpha = 0.8) + 
-  # Crear paneles: Filas = Números de Hill (q=0, 1, 2), Columnas = Localidad
-  facet_grid(Order.q ~ localidad, scales = "free") + 
-  scale_color_manual(values = localidad_colors) + 
-  theme_bw() + 
-  labs(y = "Effective Number of ASVs", x = "Number of Sequences") + 
-  # Apagamos la leyenda porque los títulos de los paneles superiores ya indican la localidad
-  theme(legend.position = "none",
-        strip.text.x = element_text(size = 8, angle = 0))
-```
-
-
-<span style="color: red;">Pregunta 3: Si habian suficientes secuencias para continuar el analisis, como se ven las curvas? que conclusiones se pueden hacer acerca de la riqueza cuando q = 0? que tal cuando q = 1? o q = 2? Estas conclusiones son validas?</span>
 
 # Final info for Reproducibility 
 

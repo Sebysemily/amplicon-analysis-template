@@ -11,7 +11,7 @@
 
 <meta name="author" content="Roger Calvas" />
 
-<meta name="date" content="2026-09-26" />
+<meta name="date" content="2026-10-28" />
 
 <title>ITS_QC</title>
 
@@ -4181,7 +4181,7 @@ font-size: 0.95em;
 
 <h1 class="title toc-ignore">ITS_QC</h1>
 <h4 class="author">Roger Calvas</h4>
-<h4 class="date">2026-09-26</h4>
+<h4 class="date">2026-10-28</h4>
 
 </div>
 
@@ -4198,13 +4198,14 @@ font-size: 0.95em;
 <div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="co"># Cuando se empezo a correr el script? </span></span>
 <span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>start_time <span class="ot">&lt;-</span> <span class="fu">Sys.time</span>()</span>
 <span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>start_time</span></code></pre></div>
-<pre><code>## [1] &quot;2026-09-26 22:05:10 UTC&quot;</code></pre>
+<pre><code>## [1] &quot;2026-10-28 01:14:39 UTC&quot;</code></pre>
 </div>
 <div id="cargar-librerias-de-r" class="section level2">
 <h2>Cargar librerias de R</h2>
 <div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="co"># Carga rápida con pacman</span></span>
-<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>pacman<span class="sc">::</span><span class="fu">p_load</span>(tidyverse, dada2, phyloseq, DT, devtools, patchwork, <span class="at">install =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a><span class="fu">library</span>( <span class="st">&quot;ShortRead&quot;</span>)</span></code></pre></div>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a><span class="co">#install.packages(&quot;janitor&quot;)</span></span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a>pacman<span class="sc">::</span><span class="fu">p_load</span>(tidyverse, dada2, phyloseq, DT, devtools, patchwork, <span class="at">install =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a><span class="fu">library</span>( <span class="st">&quot;ShortRead&quot;</span>)</span></code></pre></div>
 <pre><code>## Loading required package: BiocGenerics</code></pre>
 <pre><code>## Loading required package: generics</code></pre>
 <pre><code>## 
@@ -4614,7 +4615,9 @@ todas las lecturas largas y probar la distribucion entre truncq 11 y
 <span id="cb84-6"><a href="#cb84-6" tabindex="-1"></a>              <span class="at">truncQ =</span> <span class="dv">2</span>,</span>
 <span id="cb84-7"><a href="#cb84-7" tabindex="-1"></a>              <span class="at">minLen =</span> <span class="dv">50</span>,</span>
 <span id="cb84-8"><a href="#cb84-8" tabindex="-1"></a>              <span class="at">rm.phix =</span> <span class="cn">TRUE</span>, <span class="at">compress =</span> <span class="cn">TRUE</span>,</span>
-<span id="cb84-9"><a href="#cb84-9" tabindex="-1"></a>              <span class="at">multithread =</span> <span class="dv">10</span>)</span></code></pre></div>
+<span id="cb84-9"><a href="#cb84-9" tabindex="-1"></a>              <span class="at">multithread =</span> <span class="dv">10</span>)</span>
+<span id="cb84-10"><a href="#cb84-10" tabindex="-1"></a><span class="co"># guardar para la clase, aqui load</span></span>
+<span id="cb84-11"><a href="#cb84-11" tabindex="-1"></a><span class="fu">saveRDS</span>(filtered_reads, <span class="at">file =</span> <span class="st">&quot;data/its/01_DADA2/filtered_reads.rds&quot;</span>)</span></code></pre></div>
 </div>
 </div>
 <div id="inspeccionar-la-calidad-post-filtrado" class="section level1">
@@ -4744,13 +4747,13 @@ creo que el actual es el mejor punto medio]</p>
 <div class="sourceCode" id="cb94"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb94-1"><a href="#cb94-1" tabindex="-1"></a><span class="co"># Tiempo al terminar el script</span></span>
 <span id="cb94-2"><a href="#cb94-2" tabindex="-1"></a>end_time <span class="ot">&lt;-</span> <span class="fu">Sys.time</span>()</span>
 <span id="cb94-3"><a href="#cb94-3" tabindex="-1"></a>end_time </span></code></pre></div>
-<pre><code>## [1] &quot;2026-09-26 22:12:42 UTC&quot;</code></pre>
+<pre><code>## [1] &quot;2026-10-28 01:22:34 UTC&quot;</code></pre>
 </div>
 <div id="tiempo-de-corrida" class="section level2">
 <h2>Tiempo de corrida</h2>
 <div class="sourceCode" id="cb96"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb96-1"><a href="#cb96-1" tabindex="-1"></a>elapsed_time <span class="ot">&lt;-</span> <span class="fu">round</span>((end_time <span class="sc">-</span> start_time), <span class="dv">3</span>)</span>
 <span id="cb96-2"><a href="#cb96-2" tabindex="-1"></a>elapsed_time</span></code></pre></div>
-<pre><code>## Time difference of 7.535 mins</code></pre>
+<pre><code>## Time difference of 7.922 mins</code></pre>
 </div>
 <div id="ambiente-y-versiones-para-reproducibilidad" class="section level2">
 <h2>Ambiente y versiones para reproducibilidad</h2>
@@ -4765,7 +4768,7 @@ creo que el actual es el mejor punto medio]</p>
 ##  collate  en_US.UTF-8
 ##  ctype    en_US.UTF-8
 ##  tz       Etc/UTC
-##  date     2026-09-26
+##  date     2026-10-28
 ##  pandoc   3.8.3 @ /usr/lib/rstudio-server/bin/quarto/bin/tools/x86_64/ (via rmarkdown)
 ##  quarto   1.9.38 @ /usr/lib/rstudio-server/bin/quarto/bin/quarto
 ## 

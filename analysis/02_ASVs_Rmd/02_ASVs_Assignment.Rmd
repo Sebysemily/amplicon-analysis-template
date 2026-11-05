@@ -58,12 +58,11 @@ pacman::p_load(tidyverse, devtools, dada2,
 6. Quitar quimeras 
 7. Asignar taxonomia con UNITE
 8. Guardar los archivos relevantes: `asv_table`, `asvs_fasta`, `tax_table`, y `sample_data`
-9. Crear S4 R data object, en este caso llamado phyloseq, desde la tabla `asv_table`, `tax_table`, y metadata.Unificando todo en un solo objeto de datos.
 
 ## Input 
 1. Fastq filtrados de `01_QC_DADA2.Rmd`
 2. Vector de sample_names
-3. Metadata
+
 
 ## Output 
 1. Tabla de conteo de asvs: `asv_table` (Con y sin nombre de secuencia)
@@ -121,7 +120,8 @@ binnedErrFun <- makeBinnedQualErrfun(binnedQs)
 # Forward Reads con binned err fun
 error_forward_reads <- 
   learnErrors(filtered_forward_reads, multithread = n_threads, nbases = 3e8, errorEstimationFunction = binnedErrFun)
-
+# clase
+saveRDS(error_forward_reads, file = "data/its/02_Assign_ASVs/error_forward_reads.rds")
 # Forward Error Plot 
 forward_error_plot <- 
   plotErrors(error_forward_reads, nominalQ = TRUE) + 
@@ -130,7 +130,8 @@ forward_error_plot <-
 # Reverse Reads con binned err fun
 error_reverse_reads <- 
   learnErrors(filtered_reverse_reads, multithread = n_threads, nbases = 3e8, errorEstimationFunction = binnedErrFun)
-
+# clase
+saveRDS(error_reverse_reads, file = "data/its/02_Assign_ASVs/error_reverse_reads.rds")
 # Reverse Error Plot 
 reverse_error_plot <- 
   plotErrors(error_reverse_reads, nominalQ = TRUE) + 
@@ -153,6 +154,8 @@ dada_forward <-
   dada(filtered_forward_reads, 
        err = error_forward_reads,
        multithread = n_threads) 
+# Clase 
+saveRDS(dada_forward, file = "data/its/02_Assign_ASVs/dada_forward.rds")
 # Take a look at the data
 # What type of data structure is it? 
 typeof(dada_forward) # It's a list 
@@ -166,7 +169,8 @@ dada_reverse <-
   dada(filtered_reverse_reads,
        err = error_reverse_reads ,
        multithread = n_threads)
-
+# Clase 
+saveRDS(dada_reverse, file = "data/its/02_Assign_ASVs/dada_reverse.rds")
 # Check data 
 dada_reverse[30]
 ```
@@ -177,7 +181,8 @@ merged_ASVs <-
   mergePairs(dada_forward, filtered_forward_reads,
              dada_reverse, filtered_reverse_reads,
              verbose = TRUE)
-
+# Clase 
+saveRDS(merged_ASVs, file = "data/its/02_Assign_ASVs/merged_ASVs.rds")
 # Evaluate the data output 
 typeof(merged_ASVs) # A list
 length(merged_ASVs) # Length of the number of samples!
@@ -214,16 +219,16 @@ write.table(raw_ASV_table, file = "data/its/02_Assign_ASVs/raw_ASV_counts.tsv",
 # Calculate summary stats
 # Longest ASV?
 maxLength_ASV <- max(nchar(getSequences(raw_ASV_table)))
-
+maxLength_ASV
 # Shortest ASV?
 minLength_ASV <- min(nchar(getSequences(raw_ASV_table))) 
-
+minLength_ASV
 # Mean ASV length?
 meanLength_ASV <- mean(nchar(getSequences(raw_ASV_table))) 
-
+meanLength_ASV
 # Median ASV length?
 medianLength_ASV <- median(nchar(getSequences(raw_ASV_table))) 
-
+medianLength_ASV
 # Create a table to Inspect the distribution of sequence lengths of all ASVs in dataset 
 table(nchar(getSequences(raw_ASV_table)))
 ```
@@ -254,7 +259,8 @@ noChimeras_ASV_table <-
                      method="consensus", 
                      multithread = n_threads, 
                      verbose=TRUE)
-
+# Clase 
+saveRDS(noChimeras_ASV_table, file = "data/its/02_Assign_ASVs/noChimeras_ASV_table.rds")
 # Check the dimensions
 dim(noChimeras_ASV_table)
 
@@ -317,6 +323,8 @@ track_counts_df <-
 # Visualize it in table format 
 DT::datatable(track_counts_df)
 
+saveRDS(track_counts_df, file = "data/its/02_Assign_ASVs/track_counts_df.rds")
+
 # Plot it!
 track_counts_df %>%
   pivot_longer(denoisedF:nochim, names_to = "read_type", values_to = "num_reads") %>%
@@ -372,9 +380,11 @@ la profundidad de secuenciamiento y el numero de ASVs, algo que da mas seguridad
 # Assign taxonomy 
 taxa_train <- 
   assignTaxonomy(noChimeras_ASV_table, 
-                 refFasta = "/opt/curso_16s/bases_de_datos/amplicones/sh_general_release_unite_all_19.02.2025.fasta",
+                 refFasta = "/opt/curso_amplicones/bases_de_datos/amplicones/sh_general_release_unite_all_19.02.2025.fasta",
                  tryRC = TRUE,
                  multithread = n_threads)
+# Clase 
+saveRDS(taxa_train, file = "data/its/02_Assign_ASVs/taxa_train.rds")
 # Inspect the taxonomy 
 glimpse(taxa_train) # Note that the rownames are the ASV sequences!
 # Let's removing the ASV sequence rownames for display only
@@ -526,69 +536,6 @@ write.table(ASV_tax_table,
             sep = "\t", quote = FALSE, col.names = NA)
 ```
 
-## 3. Creacion de objeto phyloseq 
-
-### Importar metadata y agregar las calidades de agua a las muestras
-```{r load-metadata}
-# Importar la tabla de promedios de calidad de agua
-agua_df <- read_csv("data/its/metadata/agua_promedios.csv", col_names = TRUE) %>%
-  clean_names()
-
-# Estandarizar los nombres de las muestras
-track_counts_df$sample_names <- sapply(strsplit(track_counts_df$sample_names, "_"), '[', 1)
-  
-# Como se ve despues? 
-head(track_counts_df)
-
-# Ensamblar la metadata  
-metadata_fixed <-read_csv("data/its/metadata/metadata.csv", col_names = TRUE) %>%
-  clean_names() %>%
-  # Renombrar la columna de nombres para que sea sample_names
-  dplyr::rename(sample_names = codigo) %>%
-  
-  # Elimina las filas que no tenian muestras secuenciadas
-  drop_na(sample_names) %>%
-  
-  # Eliminar filas que tengan guiones bajos pero no codigo de muestra
-  filter(!str_detect(sample_names, "^_+$|^-+$")) %>%
-  
-  # Estandarizar el nombre de las muestras
-  mutate(sample_names = str_replace_all(sample_names, " ", "-")) %>%
-  mutate(sample_names = str_trim(sample_names)) %>%
-  # Inyectar las calidades promedio de agua por localidad
-  left_join(agua_df, by = "localidad") %>%
-  
-  # Inner_join para ignorar las cosas no secuenciadas y añadir stats DADA2
-  inner_join(track_counts_df, by = "sample_names") %>%
-  
-  # Prueba de sanidad para que solo haya un registro por muestra
-  distinct(sample_names, .keep_all = TRUE) %>%
-  
-  # Phyloseq exige que los identificadores de muestra estén asignados como 'rownames' 
-  # para poder ensamblar el objeto S4. Sin embargo, las herramientas de Tidyverse 
-  # (como dplyr y ggplot2) operan sobre columnas explícitas y no leen los rownames.
-  # Como la función 'column_to_rownames' consume (elimina) la columna que se le pasa, 
-  # creamos una copia temporal para sacrificarla en este paso. Esto satisface el 
-  # requisito de Phyloseq y conserva la columna original 'sample_names' intacta 
-  # para uso futuro en tidyverse y facil acceso a la metadata
-  mutate(rownames_temp = sample_names) %>% 
-  column_to_rownames(var = "rownames_temp")
-# Verificar dimensiones finales
-dim(metadata_fixed)
-```
-
-### Pasar a phyloseq
-```{r phyloseq-handoff}
-raw_physeq <-
-  phyloseq::phyloseq(otu_table(final_ASV_table, taxa_are_rows = TRUE),
-         sample_data(metadata_fixed),
-         tax_table(as.matrix(ASV_tax_table)))
-
-raw_physeq
-
-#save
-save(raw_physeq, file = "data/its/02_Assign_ASVs/raw_physeq.RData")
-```
 
 # Final info for Reproducibility 
 

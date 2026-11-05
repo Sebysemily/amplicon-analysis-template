@@ -285,7 +285,8 @@ filtered_reads <-
               minLen = 50,
               rm.phix = TRUE, compress = TRUE,
               multithread = 10)
-
+# guardar para la clase, aqui load
+saveRDS(filtered_reads, file = "data/its/01_DADA2/filtered_reads.rds")
 ```
 
 # Inspeccionar la calidad post-filtrado

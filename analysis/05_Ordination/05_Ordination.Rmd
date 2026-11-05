@@ -1,5 +1,5 @@
 ---
-title: "Beta diversity of microbes during inulin treatment"
+title: "Beta diversity of microbes on diferent frog skins"
 author: "Roger Calvas"
 date: "`r Sys.Date()`"
 output:
@@ -62,12 +62,7 @@ Does inulin treatment increase SCFA production (i.e., acetate, butyrate, propion
 
 <span style="color: red;">INTERPRETATION #1:  What is your scientific question and hypotheses? Do they relate to abundance? Presence/absence? Phylogeny?</span>
 
-Does inulin treatment increase SCFA production (i.e., acetate, butyrate, propionate), and is this associated with a shift in fiber-fermenting bacteria?
 
-- *Null Hypothesis:* Microbial diversity and scfa production does not vary during inulin treatment.
-- *Alternative Hypothesis:* An inulin treatment will stimulate scfa production and shift microbial composition.
-
-This question relates to abundance by observing changes in the gut microbial composition during an inulin treatment, favoring the taxa that produce scfa from fermentable fiber.
 # Set up 
 
 ## Timing of this script
@@ -99,14 +94,14 @@ source("code/functions.R")
 
 ```{r load-data}
 # load phyloseq object
-load("data/04_Phylogenetic_Tree/archaeal_rooted_physeq.RData")
-archaeal_rooted_physeq
+load("data/its/03_PreProcessing/clean_physeq.RData")
+clean_physeq
 
 # Intuition check on seq depth
-min(sample_sums(archaeal_rooted_physeq))
+min(sample_sums(clean_physeq))
 ```
 
-# Normalizing the Read Depth 
+# Normalizar conteos 
 
 ## 2. Explore the Raw Read Counts 
 
