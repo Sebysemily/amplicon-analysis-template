@@ -14,3 +14,6 @@ figures/**
 *.RData
 analysis/00_multiqc/its/*
 /.Rhistory
+/analysis/00_multiqc/fastqc
+/analysis/00_multiqc/multiqc_data
+curso_trabajo.Rproj
