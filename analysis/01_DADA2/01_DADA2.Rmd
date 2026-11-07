@@ -70,7 +70,7 @@ library("Biostrings")
 
 ```{r load-raw}
 # Fijar la ruta de los raw
-raw_fastqs_path <- "data/its/01_DADA2/raw_fastq"
+raw_fastqs_path <- "data/01_DADA2/raw_fastqs"
 
 # Que archivos hay en la ruta?
 head(list.files(raw_fastqs_path))
@@ -107,6 +107,7 @@ sort(bins_reales)
 
 # Anotar el output para el paso del modelo de errores
 ```
+
 
 ## Identificar e eliminar primers (Se puede saltar en su mayoria en 16s)
 ```{r primer-identification}
@@ -176,7 +177,7 @@ REV.RC <- dada2::rc(REV)
 R1.flags <- paste("-g", FWD, "-a", REV.RC)
 # REV y el complemento de FWD de R2
 R2.flags <- paste("-G", REV, "-A", FWD.RC)
-# Correr cutadapt (antes de correr explicar que -n 2 hace que haga hasta 2 cortes por lectura que tiene sentido pq queremos cortar ambos extremos y -m 50 nos da un minimo de largo de 50 que es arbitrario pero la justificacion es que aun puede solapar con lecturas mas largas de complemento para formar un asv pequenio y cortar demasiado corto puede hacer que no empalmen pero demasiado largo puede esconder diversidad biologica)
+# Correr cutadapt 
 for(i in seq_along(forward_reads)){
   system2(cutadapt, args = c(R1.flags, R2.flags, "-n", 2, "-m", 50, 
                              "-o", forward_reads.cut[i], "-p", reverse_reads.cut[i], forward.filtN[i], reverse.filtN[i]), stdout = FALSE, stderr = FALSE)
@@ -214,6 +215,7 @@ reverse_preQual_plot_12 <- plotQualityProfile(reverse_reads.cut[random_samples])
 forward_preQual_plot_12 + reverse_preQual_plot_12
 ```
 
+
 ## Plot de calidad de todas las secuencias agregadas
 ```{r aggregated-preQC-plot, fig.width=12, fig.height=8}
 # Reads forward
@@ -235,15 +237,7 @@ preQC_aggregate_plot
 
 <span style="color: red;"> Pregunta 1: Que inferencias iniciales en relacion al filtrado se pueden encontrar hasta ahora? </span> 
 
-[*Calidad alta de inicio a ~200pb:*<br>
-Se mantiene la tendendencia de illumina de perdida de calidad en las lecturas
-finales de R2 pero en contraste de lo esperado no hay un drop de calidad inicial
-muy fuerte, puede ser que haya sido enmascarado por el binning. <br>
-- **solucion: ** Ya que no se puede usar trimLeft o truncLen por la naturaleza de largo variable en ITS, se puede usar maxEE asimetricos tal vez (2,3) porque tampoco quisiera filtrar demasiado amplicones largos (por tener mas pb es mas probable que tengan EE altos)<br>
-*Calidad en binning:* al tener valores discretos se podria ver como cambian los largos y la profundidad al hacer truncq 11 y truncq 2, pero esto podria dejar secuencias demasiado pequeñas que no empalmaran
-- **solucion:** minLen de 50 para evitar cortar todas las lecturas largas y probar la distribucion entre truncq 11 y 2]
-
-# Filter and trim
+#  Filter and trim
 
 ##  Preparar donde se van a guardar las reads filtradas 
 ```{r prep-seq-for-filt}
@@ -286,7 +280,7 @@ filtered_reads <-
               rm.phix = TRUE, compress = TRUE,
               multithread = 10)
 # guardar para la clase, aqui load
-saveRDS(filtered_reads, file = "data/its/01_DADA2/filtered_reads.rds")
+filtered_reads <- readRDS("/opt/curso_amplicones/bases_de_datos/amplicones/Rdata/filtered_reads.rds")
 ```
 
 # Inspeccionar la calidad post-filtrado
@@ -392,9 +386,8 @@ numSeqs_QC_dotplot + numRetained_QC_histplot + percSeqs_QC_histplot +
 
 ```
 
-
 <span style="color: red;"> Pregunta 2: Explica por que usaste los parametros finales para filter and trim y como se ve la calidad post filtrado. </span> 
-[La calidad se ve mas solida despues del filtrado, los dips finales en las muestras R2 se han reducido pero no eliminado por completo, solo que: truncq = 11 reduce demasiado el numero de muestras con largo alto y maxEE= c(1,1) elimina tambien muestras largas de sobremanera, viendo los graficos corriendo diferentes filter and trim creo que el actual es el mejor punto medio]
+
 
 # Stats del script
 
@@ -415,4 +408,3 @@ elapsed_time
 ```{r env-info}
 devtools::session_info()
 ```
-
