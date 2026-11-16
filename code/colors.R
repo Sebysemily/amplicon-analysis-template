@@ -8,8 +8,25 @@ localidad_colors <- c(
   "Santa Teresita, Peña Blanca"         = "#E76BF3"  # Magenta/Rosa
 )
 
-# Set the phylum colors
+# Set the phylum colors (16S + ITS Fungi)
 phylum_colors <- c(
+  # Hongos (ITS)
+  "p__Ascomycota"                  = "#D95F02",
+  "p__Basidiomycota"               = "#7570B3",
+  "p__Mortierellomycota"           = "#1B9E77",
+  "p__Rozellomycota"               = "#E7298A",
+  "p__Mucoromycota"                = "#66A61E",
+  "p__Chytridiomycota"             = "#E6AB02",
+  "p__Basidiobolomycota"           = "#A6761D",
+  "p__Glomeromycota"               = "#377EB8",
+  "p__Neocallimastigomycota"       = "#4DAF4A",
+  "p__Kickxellomycota"             = "#984EA3",
+  "p__Sanchytriomycota"            = "#FF7F00",
+  "p__Monoblepharomycota"          = "#FFFF33",
+  "p__Fungi_phy_Incertae_sedis"    = "grey60",
+  "p__Olpidiomycota"               = "#F781BF",
+  "p__Blastocladiomycota"          = "#8DD3C7",
+  # Bacterias (16S)
   Acidobacteriota = "navy", 
   Actinomycetota = "darkslategray2", 
   Bacillota = "deeppink1",

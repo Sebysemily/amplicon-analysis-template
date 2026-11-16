@@ -1,0 +1,555 @@
+---
+title: "Fungal compositional analysis on frog skins across localities and vertical positions"
+author: "Roger Calvas"
+date: "`r Sys.Date()`"
+output:
+  html_document: 
+    code_folding: show
+    theme: spacelab
+    highlight: pygments
+    keep_md: no
+    toc: yes
+    toc_float:
+      collapsed: no
+      smooth_scroll: yes
+      toc_depth: 3
+  keep_md: true  
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE,
+                      fig.path = "../../figures/06_Composition/")
+```
+
+# Goals
+
+En este archivo realizaremos el análisis composicional de nuestro dataset de hongos (ITS) normalizado/escalado en la piel de ranas:
+
+1. Cargar el objeto `phyloseq` escalado (`data/its/05_Ordination/scaled_physeq.RData`).
+2. Calcular las abundancias relativas de los grupos taxonómicos en tres niveles:
+    A. **Phylum**
+    B. **Genus**
+    C. **ASV**
+3. Graficar los grupos principales y explorar cómo varían según la **localidad** (`localidad`, variable categórica) y la **altura desde el suelo** (`posicion_vertical_cm`, variable continua).
+
+## Inputs 
+
+1. Cargaremos `data/its/05_Ordination/scaled_physeq.RData`, creado en `analysis/05_Ordination/05_Ordination.Rmd`.
+
+## Outputs 
+
+1. Visualizaciones de la composición taxonómica fúngica y cómo varía a través de las localidades y la posición vertical.
+2. Pruebas estadísticas exploratorias (Kruskal-Wallis / correlaciones) sobre grupos de interés.
+
+# Compositional Data 
+
+Microbial abundance data—like 16S rRNA gene, ITS, or metagenomics data—are typically **compositional:** they represent relative abundances constrained to a constant total (*e.g.,* percent or proportions). This introduces spurious correlations and other issues if analyzed with traditional statistics. This is a very important limitation to microbial data! 
+
+<span style="color: red;">INTERPRETATION #1: What are the limitations of interpreting microbial abundance from relative (aka. compositional) rather than absolute counts?</span>
+
+The limitations of relative abundance lie in the interpretation of change: because relative abundances are constrained to a sum of 100% (or 1.0) in each sample, if one fungal taxon increases in absolute abundance, it mathematically forces other taxa to decrease their relative percentage even if their actual cell/spore load on the frog skin did not change.
+
+# Setup 
+
+## Timing of this script
+
+```{r rmd-start}
+# What time did we start running this script? 
+start_time <- Sys.time()
+```
+
+## Load Packages 
+```{r load-packages}
+# Load in the packages 
+pacman::p_load(tidyverse, devtools, DT, phyloseq, patchwork, ggpubr, 
+               install = FALSE)
+
+# load colors
+source("code/colors.R")
+```
+
+## 1. Load in Scaled Phyloseq object 
+
+```{r load-data}
+load("data/its/05_Ordination/scaled_physeq.RData")
+
+# Look at the data 
+scaled_physeq
+
+# Intuition check on scaled read depth
+min(sample_sums(scaled_physeq))
+range(sample_sums(scaled_physeq))
+```
+
+# Taxonomic Analysis
+
+## A. Phylum
+
+```{r calc-phylum-df}
+# Create a phylum level dataframe
+phylum_df <- 
+  scaled_physeq %>%
+  # Agglomerate all ASV counts within a phylum
+  tax_glom(taxrank = "Phylum") %>%
+  # Calculate the relative abundance! 
+  transform_sample_counts(function(x) {x/sum(x)}) %>%
+  # Create a dataframe from phyloseq object
+  psmelt() 
+
+## What are the phylum abundances? 
+phylum_df %>%
+  group_by(Phylum) %>%
+  summarize(mean_PercAbund = round(mean(Abundance), digits = 4)) %>%
+  arrange(-mean_PercAbund) %>%
+  datatable()
+
+# Make a list of the top 10 phyla 
+top10_phyla <- 
+  phylum_df %>%
+  group_by(Phylum) %>%
+  summarize(mean_PercAbund = mean(Abundance)) %>%
+  arrange(-mean_PercAbund) %>%
+  head(n = 10) %>%
+  pull(Phylum)
+
+top10_phyla
+```
+
+<span style="color: red;">INTERPRETATION #2: Which phyla in your dataset have the highest relative abundances? What are their abundances? We will focus on these phyla for plotting below. :)</span>
+
+
+## Stacked Bar Plots (Por Muestra y por Localidad)
+
+```{r phylum-stacked-bar, fig.width=11, fig.height=4.5}
+# 1. Stacked Bar Plot por muestra individual, agrupado por localidad
+phylum_df %>%
+  dplyr::filter(Phylum %in% top10_phyla) %>%
+  ggplot(aes(x = sample_names, y = Abundance, fill = Phylum)) + 
+  geom_bar(stat = "identity", color = "black", linewidth = 0.2) + 
+  facet_grid(. ~ localidad, scales = "free_x", space = "free_x") + 
+  labs(title = "Top 10 Fungal Phyla por muestra y localidad",
+       x = "Muestra", y = "Relative Abundance") + 
+  scale_fill_manual(values = phylum_colors) +
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 7),
+        strip.text.x = element_text(size = 7))
+```
+
+## Faceted Bar Plot & Boxplot por Phylum y Localidad
+
+```{r phylum-facet-bar, fig.width=10, fig.height=12}
+# Vista en barras facetadas por Phylum y Localidad
+phylum_df %>%
+  dplyr::filter(Phylum %in% top10_phyla) %>%
+  ggplot(aes(x = sample_names, y = Abundance, fill = Phylum)) + 
+  facet_grid(Phylum ~ localidad, scales = "free") + 
+  geom_bar(stat = "identity", color = "black", linewidth = 0.2) + 
+  scale_fill_manual(values = phylum_colors) + 
+  theme_bw() + 
+  labs(x = "Muestra", y = "Relative Abundance") +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 6),
+        strip.text = element_text(size = 7))
+```
+
+```{r plot-phylum-localidad, fig.width=12, fig.height=7}
+### Boxplots + Jitter de los Top 10 Phyla comparando entre localidades
+phylum_df %>%
+  dplyr::filter(Phylum %in% top10_phyla) %>%
+  ggplot(aes(x = localidad, y = Abundance, fill = localidad, color = localidad)) + 
+  facet_wrap(Phylum ~ ., scales = "free_y", nrow = 2) + 
+  geom_jitter(width = 0.2, size = 1.5) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.4) + 
+  scale_fill_manual(values = localidad_colors) + 
+  scale_color_manual(values = localidad_colors) + 
+  labs(title = "Abundancia relativa de los Top 10 Phyla por Localidad",
+       x = NULL, y = "Relative Abundance") +
+  theme_bw() + 
+  theme(legend.position = "bottom",
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+```
+
+<span style="color: red;">INTERPRETATION #3: Make the above dotplot and boxplot for your sample types and your most abundant phyla. What initial conclusions can you draw regarding the sampled microbial communities as it relates to your scientific question?</span>
+
+
+### A1. `p__Ascomycota` (Localidad y Posición Vertical)
+
+```{r phylum-ascomycota, fig.width=9, fig.height=4}
+# CATEGÓRICA: Localidad
+ascomycota_phylum_loc <- 
+  phylum_df %>%
+  dplyr::filter(Phylum == "p__Ascomycota") %>%
+  ggplot(aes(x = localidad, y = Abundance, 
+             fill = localidad, color = localidad)) + 
+  geom_boxplot(alpha = 0.4, outlier.shape = NA) + 
+  geom_jitter(width = 0.2) + 
+  stat_compare_means(method = "kruskal.test", label.x.npc = "left", label.y.npc = "bottom", size = 3) +
+  theme_bw() + 
+  labs(title = "Ascomycota: Localidad", x = NULL, y = "Relative Abundance") + 
+  scale_color_manual(values = localidad_colors) + 
+  scale_fill_manual(values = localidad_colors) + 
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position = "right")
+
+# CONTINUA: posicion_vertical_cm
+ascomycota_phylum_altura <- 
+  phylum_df %>%
+  dplyr::filter(Phylum == "p__Ascomycota") %>%
+  ggplot(aes(x = posicion_vertical_cm, y = Abundance)) + 
+  geom_point(aes(color = localidad), size = 2.5) + 
+  theme_bw() + 
+  geom_smooth(method = "lm", color = "black", se = TRUE) + 
+  stat_cor(method = "spearman", label.x.npc = "left", label.y.npc = "bottom", size = 3) +
+  labs(title = "Ascomycota: Altura", x = "Posición vertical (cm)", y = "Relative Abundance") + 
+  scale_color_manual(values = localidad_colors) + 
+  theme(legend.position = "none")
+
+# Combinar ambos gráficos
+ascomycota_phylum_loc + ascomycota_phylum_altura + 
+  plot_layout(guides = "collect") +
+  plot_annotation(tag_levels = "A")
+```
+
+### A2. `p__Basidiomycota` (Localidad y Posición Vertical)
+
+```{r phylum-basidiomycota, fig.width=9, fig.height=4}
+# CATEGÓRICA: Localidad
+basidiomycota_phylum_loc <- 
+  phylum_df %>%
+  dplyr::filter(Phylum == "p__Basidiomycota") %>%
+  ggplot(aes(x = localidad, y = Abundance, 
+             fill = localidad, color = localidad)) + 
+  geom_boxplot(alpha = 0.4, outlier.shape = NA) + 
+  geom_jitter(width = 0.2) + 
+  stat_compare_means(method = "kruskal.test", label.x.npc = "left", label.y.npc = "top", size = 3) +
+  theme_bw() + 
+  labs(title = "Basidiomycota: Localidad", x = NULL, y = "Relative Abundance") + 
+  scale_color_manual(values = localidad_colors) + 
+  scale_fill_manual(values = localidad_colors) + 
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position = "right")
+
+# CONTINUA: posicion_vertical_cm
+basidiomycota_phylum_altura <- 
+  phylum_df %>%
+  dplyr::filter(Phylum == "p__Basidiomycota") %>%
+  ggplot(aes(x = posicion_vertical_cm, y = Abundance)) + 
+  geom_point(aes(color = localidad), size = 2.5) + 
+  theme_bw() + 
+  geom_smooth(method = "lm", color = "black", se = TRUE) + 
+  stat_cor(method = "spearman", label.x.npc = "left", label.y.npc = "top", size = 3) +
+  labs(title = "Basidiomycota: Altura", x = "Posición vertical (cm)", y = "Relative Abundance") + 
+  scale_color_manual(values = localidad_colors) + 
+  theme(legend.position = "none")
+
+# Combinar ambos gráficos
+basidiomycota_phylum_loc + basidiomycota_phylum_altura + 
+  plot_layout(guides = "collect") +
+  plot_annotation(tag_levels = "A")
+```
+
+### A3. `p__Rozellomycota` y `p__Mortierellomycota` (Otros Phyla frecuentes)
+
+```{r phylum-otros, fig.width=9, fig.height=4}
+# Explorar los siguientes 2 phyla más frecuentes
+otros_phyla_loc <- 
+  phylum_df %>%
+  dplyr::filter(Phylum %in% c("p__Mortierellomycota", "p__Rozellomycota", "p__Chytridiomycota")) %>%
+  ggplot(aes(x = localidad, y = Abundance, fill = localidad, color = localidad)) + 
+  facet_wrap(. ~ Phylum, scales = "free_y", nrow = 1) +
+  geom_boxplot(alpha = 0.4, outlier.shape = NA) + 
+  geom_jitter(width = 0.2) + 
+  scale_color_manual(values = localidad_colors) + 
+  scale_fill_manual(values = localidad_colors) + 
+  labs(title = "Otros Phyla de interés (Mortierellomycota, Rozellomycota, Chytridiomycota)",
+       x = NULL, y = "Relative Abundance") +
+  theme_bw() + 
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position = "bottom")
+
+otros_phyla_loc
+```
+
+<span style="color: red;">INTERPRETATION #4: Based on these phylum-level analyses, were there any phyla that you were able to identify to focus on moving forward for deeper taxonomic analyses? Why?</span>
+
+
+## B. Genus
+
+Calculamos el dataframe aglomerado a nivel de género (`Genus`).
+
+```{r genus-df}
+# Calculate the Genus relative abundance 
+genus_df <- 
+  scaled_physeq %>%
+  # agglomerate at the genus level 
+  tax_glom(taxrank = "Genus") %>% 
+  # Transform counts to relative abundance 
+  transform_sample_counts(function (x) {x/sum(x)}) %>%
+  # Melt to a long format 
+  psmelt()
+
+# Revisar los 10 géneros más abundantes en todo el dataset
+top10_genera <- 
+  genus_df %>%
+  group_by(Phylum, Genus) %>%
+  summarize(mean_PercAbund = round(mean(Abundance), digits = 4), .groups = "drop") %>%
+  arrange(-mean_PercAbund)
+
+top10_genera %>% datatable()
+```
+
+### B1. Géneros principales de `p__Ascomycota`
+
+```{r ascomycota-genus, fig.width=10, fig.height=7}
+# Identificar los 4 géneros más abundantes dentro de Ascomycota
+top_asco_genera <- 
+  genus_df %>%
+  dplyr::filter(Phylum == "p__Ascomycota") %>%
+  group_by(Genus) %>%
+  summarize(mean_Abund = mean(Abundance), .groups = "drop") %>%
+  arrange(-mean_Abund) %>%
+  head(n = 4) %>%
+  pull(Genus)
+
+# Categórica: Localidad
+asco_genus_loc <- 
+  genus_df %>%
+  dplyr::filter(Genus %in% top_asco_genera) %>%
+  ggplot(aes(x = localidad, y = Abundance, 
+             fill = localidad, color = localidad)) + 
+  facet_wrap(. ~ Genus, scales = "free_y", nrow = 1) + 
+  geom_boxplot(alpha = 0.4, outlier.shape = NA) + 
+  geom_jitter(width = 0.2, size = 1.5) + 
+  theme_bw() + 
+  labs(title = "Top 4 Ascomycota Genera por Localidad", x = NULL, y = "Relative Abundance") + 
+  scale_color_manual(values = localidad_colors) + 
+  scale_fill_manual(values = localidad_colors) + 
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position = "right")
+
+# Continua: Posición vertical
+asco_genus_altura <- 
+  genus_df %>%
+  dplyr::filter(Genus %in% top_asco_genera) %>%
+  ggplot(aes(x = posicion_vertical_cm, y = Abundance)) + 
+  facet_wrap(. ~ Genus, scales = "free_y", nrow = 1) + 
+  geom_point(aes(color = localidad), size = 2) +  
+  theme_bw() + 
+  geom_smooth(method = "lm", color = "black", se = FALSE) + 
+  labs(title = "Top 4 Ascomycota Genera vs Posición Vertical", x = "Posición vertical (cm)", y = "Relative Abundance") + 
+  scale_color_manual(values = localidad_colors) + 
+  theme(legend.position = "none")
+
+# Combinar
+asco_genus_loc / asco_genus_altura + 
+  plot_layout(guides = "collect") +
+  plot_annotation(tag_levels = "A")
+```
+
+### B2. Géneros principales de `p__Basidiomycota`
+
+```{r basidiomycota-genus, fig.width=10, fig.height=7}
+# Identificar los 4 géneros más abundantes dentro de Basidiomycota
+top_basidio_genera <- 
+  genus_df %>%
+  dplyr::filter(Phylum == "p__Basidiomycota") %>%
+  group_by(Genus) %>%
+  summarize(mean_Abund = mean(Abundance), .groups = "drop") %>%
+  arrange(-mean_Abund) %>%
+  head(n = 4) %>%
+  pull(Genus)
+
+# Categórica: Localidad
+basidio_genus_loc <- 
+  genus_df %>%
+  dplyr::filter(Genus %in% top_basidio_genera) %>%
+  ggplot(aes(x = localidad, y = Abundance, 
+             fill = localidad, color = localidad)) + 
+  facet_wrap(. ~ Genus, scales = "free_y", nrow = 1) + 
+  geom_boxplot(alpha = 0.4, outlier.shape = NA) + 
+  geom_jitter(width = 0.2, size = 1.5) + 
+  theme_bw() + 
+  labs(title = "Top 4 Basidiomycota Genera por Localidad", x = NULL, y = "Relative Abundance") + 
+  scale_color_manual(values = localidad_colors) + 
+  scale_fill_manual(values = localidad_colors) + 
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position = "right")
+
+# Continua: Posición vertical
+basidio_genus_altura <- 
+  genus_df %>%
+  dplyr::filter(Genus %in% top_basidio_genera) %>%
+  ggplot(aes(x = posicion_vertical_cm, y = Abundance)) + 
+  facet_wrap(. ~ Genus, scales = "free_y", nrow = 1) + 
+  geom_point(aes(color = localidad), size = 2) +  
+  theme_bw() + 
+  geom_smooth(method = "lm", color = "black", se = FALSE) + 
+  labs(title = "Top 4 Basidiomycota Genera vs Posición Vertical", x = "Posición vertical (cm)", y = "Relative Abundance") + 
+  scale_color_manual(values = localidad_colors) + 
+  theme(legend.position = "none")
+
+# Combinar
+basidio_genus_loc / basidio_genus_altura + 
+  plot_layout(guides = "collect") +
+  plot_annotation(tag_levels = "A")
+```
+
+<span style="color: red;">INTERPRETATION #5: Please make some plots of mid-level taxonomic ranks (e.g. Genus, Family, Order) as it relates to your scientific question. Were there any changes in the mid-level taxonomic trends compared to the phylum-level results? What does that tell you about that taxonomic group?</span>
+
+
+## C. ASV level
+
+```{r ASV-plots}
+# Calculate the ASV relative abundance 
+# Filtramos ASVs muy raros (quedándonos con aquellos que sumen al menos el ~1% de la profundidad escalada en todo el dataset)
+umbral_conteos <- round(min(sample_sums(scaled_physeq)) * 0.05)
+
+ASV_df <- 
+  scaled_physeq %>%
+  prune_taxa(taxa_sums(.) >= umbral_conteos, .) %>%
+  tax_glom(taxrank = "ASV") %>% 
+  transform_sample_counts(function (x) {x/sum(x)}) %>%
+  psmelt()
+
+# Ver cuáles son los 10 ASVs más abundantes globalmente
+ASV_df %>%
+  group_by(ASV, Phylum, Genus, Species) %>%
+  summarize(mean_Abundance = round(mean(Abundance), 4), .groups = "drop") %>%
+  arrange(-mean_Abundance) %>%
+  head(10) %>%
+  datatable()
+```
+
+### C1. Top ASVs de `p__Ascomycota`
+
+```{r ascomycota-asvs, fig.width=10, fig.height=7}
+# Seleccionar los 4 ASVs más abundantes de Ascomycota
+top_asco_ASVs <- 
+  ASV_df %>%
+  dplyr::filter(Phylum == "p__Ascomycota") %>%
+  group_by(ASV) %>%
+  summarize(mean_Abundance = mean(Abundance), .groups = "drop") %>%
+  arrange(-mean_Abundance) %>%
+  head(n = 4) %>%
+  pull(ASV)
+
+# Plot ASVs por Localidad
+asco_asv_loc <- 
+  ASV_df %>%
+  dplyr::filter(ASV %in% top_asco_ASVs) %>%
+  ggplot(aes(x = localidad, y = Abundance, 
+             fill = localidad, color = localidad)) + 
+  facet_wrap(Genus ~ ASV, scales = "free_y", nrow = 1) + 
+  geom_boxplot(alpha = 0.4, outlier.shape = NA) + 
+  geom_jitter(width = 0.2, size = 1.5) + 
+  theme_bw() + 
+  labs(title = "Top Ascomycota ASVs por Localidad", x = NULL, y = "Relative Abundance") + 
+  scale_color_manual(values = localidad_colors) + 
+  scale_fill_manual(values = localidad_colors) + 
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position = "right")
+
+# Plot ASVs vs Posición Vertical
+asco_asv_altura <- 
+  ASV_df %>%
+  dplyr::filter(ASV %in% top_asco_ASVs) %>%
+  ggplot(aes(x = posicion_vertical_cm, y = Abundance)) + 
+  facet_wrap(Genus ~ ASV, scales = "free_y", nrow = 1) + 
+  geom_point(aes(color = localidad), size = 2) +  
+  theme_bw() + 
+  geom_smooth(method = "lm", color = "black", se = FALSE) + 
+  labs(title = "Top Ascomycota ASVs vs Posición Vertical", x = "Posición vertical (cm)", y = "Relative Abundance") + 
+  scale_color_manual(values = localidad_colors) + 
+  theme(legend.position = "none")
+
+# Combinar
+asco_asv_loc / asco_asv_altura + 
+  plot_layout(guides = "collect") +
+  plot_annotation(tag_levels = "A")
+```
+
+### C2. Top ASVs de `p__Basidiomycota`
+
+```{r basidiomycota-asvs, fig.width=10, fig.height=7}
+# Seleccionar los 4 ASVs más abundantes de Basidiomycota
+top_basidio_ASVs <- 
+  ASV_df %>%
+  dplyr::filter(Phylum == "p__Basidiomycota") %>%
+  group_by(ASV) %>%
+  summarize(mean_Abundance = mean(Abundance), .groups = "drop") %>%
+  arrange(-mean_Abundance) %>%
+  head(n = 4) %>%
+  pull(ASV)
+
+# Plot ASVs por Localidad
+basidio_asv_loc <- 
+  ASV_df %>%
+  dplyr::filter(ASV %in% top_basidio_ASVs) %>%
+  ggplot(aes(x = localidad, y = Abundance, 
+             fill = localidad, color = localidad)) + 
+  facet_wrap(Genus ~ ASV, scales = "free_y", nrow = 1) + 
+  geom_boxplot(alpha = 0.4, outlier.shape = NA) + 
+  geom_jitter(width = 0.2, size = 1.5) + 
+  theme_bw() + 
+  labs(title = "Top Basidiomycota ASVs por Localidad", x = NULL, y = "Relative Abundance") + 
+  scale_color_manual(values = localidad_colors) + 
+  scale_fill_manual(values = localidad_colors) + 
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position = "right")
+
+# Plot ASVs vs Posición Vertical
+basidio_asv_altura <- 
+  ASV_df %>%
+  dplyr::filter(ASV %in% top_basidio_ASVs) %>%
+  ggplot(aes(x = posicion_vertical_cm, y = Abundance)) + 
+  facet_wrap(Genus ~ ASV, scales = "free_y", nrow = 1) + 
+  geom_point(aes(color = localidad), size = 2) +  
+  theme_bw() + 
+  geom_smooth(method = "lm", color = "black", se = FALSE) + 
+  labs(title = "Top Basidiomycota ASVs vs Posición Vertical", x = "Posición vertical (cm)", y = "Relative Abundance") + 
+  scale_color_manual(values = localidad_colors) + 
+  theme(legend.position = "none")
+
+# Combinar
+basidio_asv_loc / basidio_asv_altura + 
+  plot_layout(guides = "collect") +
+  plot_annotation(tag_levels = "A")
+```
+
+<span style="color: red;">INTERPRETATION #6: Were the most abundant ASVs in your dataset represented in your ASV-level plots? If not, please go back and plot them specifically. (Hint: Remember that we ordered our ASV names by abundance across the entire dataset. Therefore, ASV_0001 will be the most abundant, ASV_0007 will be the 7th most abundant and so on.)</span>
+
+
+<span style="color: red;">INTERPRETATION #7: Please make some plots at the ASV level as it relates to your scientific question. Were there any ASVs that were especially related to trends that you saw? Did a specific phylogenetic group all show the same trends (e.g. like the Actinomycetota ASVs above)? Or did the ASVs have various, likely niche-specific responses (similar to the Cyanobacteriota above)??</span>
+
+
+<span style="color: red;">INTERPRETATION #8: Now, do a quick literature or google search and look back in the paper that you may be replicating (if applicable). Does your ASV-level changes represent something that is currently known? Or is this a novel result? What did you learn about this ASV or a group of ASVs in your dataset?</span>
+
+
+# Final info for Reproducibility 
+
+## Check Render Time
+```{r stop-time}
+# Take the time now that we are at the end of the script
+end_time <- Sys.time()
+end_time 
+
+# Echo the elapsed time
+elapsed_time <- round((end_time - start_time), 3)
+elapsed_time
+```
+
+## Session Information 
+For reproducibility 
+```{r session_info}
+devtools::session_info()
+```
